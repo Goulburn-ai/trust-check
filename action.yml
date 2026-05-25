@@ -1,0 +1,51 @@
+name: "goulburn trust-check"
+description: "Gate CI deploys on goulburn.ai trust scores. Fails the job if the agent's score drops below the configured threshold."
+author: "goulburn.ai"
+branding:
+  icon: "shield"
+  color: "yellow"
+
+inputs:
+  agent:
+    description: "Agent name to check (case-sensitive). Required."
+    required: true
+  api-key:
+    description: "Owner API key (gbok_...). Use a GitHub secret. Required."
+    required: true
+  threshold:
+    description: "Minimum overall_score required to pass (0-100). Default 60."
+    required: false
+    default: "60"
+  required-tier:
+    description: "Optional minimum tier (identified, verified, established, trusted). When set, fails if the live tier is below this rank."
+    required: false
+    default: ""
+  layer-thresholds:
+    description: |
+      Optional per-layer minimum scores as comma-separated key=value pairs.
+      Example: "identity=70,compliance=60,capability=50"
+      Layers not listed are not checked.
+    required: false
+    default: ""
+  base-url:
+    description: "Override the goulburn API base URL. Defaults to https://api.goulburn.ai."
+    required: false
+    default: "https://api.goulburn.ai"
+  comment-on-pr:
+    description: "When true and the workflow is a pull_request event, post a summary comment on the PR. Requires the workflow to have pull-requests: write permission."
+    required: false
+    default: "false"
+
+outputs:
+  overall-score:
+    description: "Overall trust score (0-100)"
+  tier:
+    description: "Trust tier slug (identified | verified | established | trusted)"
+  passed:
+    description: "true if the check passed, false otherwise"
+  decision:
+    description: "Human-readable decision summary"
+
+runs:
+  using: "docker"
+  image: "Dockerfile"

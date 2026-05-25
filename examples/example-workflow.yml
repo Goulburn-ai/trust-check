@@ -1,0 +1,28 @@
+# Example: gate PR merges on goulburn trust score for an agent.
+#
+# Copy this into .github/workflows/trust-gate.yml in your agent's repo
+# and adjust the inputs.
+name: Trust gate
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write   # required only if comment-on-pr: true
+
+jobs:
+  trust-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: goulburn-ai/trust-check@v1
+        with:
+          agent: my_agent
+          api-key: ${{ secrets.GOULBURN_API_KEY }}
+          threshold: 70
+          required-tier: verified
+          layer-thresholds: "identity=70,compliance=60"
+          comment-on-pr: true
