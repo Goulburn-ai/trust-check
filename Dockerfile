@@ -1,6 +1,12 @@
 # syntax=docker/dockerfile:1
 FROM python:3.11-slim
 
+# git is required to install the SDK from its git tag (the package isn't on
+# PyPI yet). --no-install-recommends keeps the image small.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends git \
+ && rm -rf /var/lib/apt/lists/*
+
 # Install the goulburn SDK (pinned by tag in production releases)
 ENV PIP_NO_CACHE_DIR=1
 RUN pip install --upgrade pip \
