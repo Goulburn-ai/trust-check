@@ -1,8 +1,7 @@
 name: release-pypi
 
 # Trigger: any tag starting with v (v1.1.0, v1.2.0, v2.0.0, ...).
-# Publishes goulburn-trust-check to PyPI via Trusted Publishing (OIDC) -
-# no long-lived API token required. Also creates a GitHub Release.
+# Publishes goulburn-trust-check to PyPI via Trusted Publishing (OIDC).
 on:
   push:
     tags:
@@ -32,11 +31,13 @@ jobs:
 
       - name: Verify package version matches the tag
         run: |
-          set -euxo pipefail
+          set -eo pipefail
           TAG_VERSION="${GITHUB_REF_NAME#v}"
-          PKG_VERSION=$(python -c "import re,sys; src=open('src/goulburn_trust_check/__init__.py').read(); m=re.search(r'__version__\\s*=\\s*[\\\"\\\']([^\\\"\\\']+)', src); print(m.group(1))")
-          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
-            echo "::error::Tag v$TAG_VERSION does not match package version $PKG_VERSION"
+          PKG_VERSION=$(PYTHONPATH=src python -c "from goulburn_trust_check import __version__; print(__version__)")
+          echo "tag version:     ${TAG_VERSION}"
+          echo "package version: ${PKG_VERSION}"
+          if [ "${TAG_VERSION}" != "${PKG_VERSION}" ]; then
+            echo "::error::Tag v${TAG_VERSION} does not match package version ${PKG_VERSION}"
             exit 1
           fi
 
