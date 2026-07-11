@@ -5,9 +5,9 @@ job if your agent's score drops below the configured threshold.
 
 Two distribution channels, **same logic, same exit codes**:
 
-* `pip install goulburn-trust-check` — CLI for any CI (GitLab, CircleCI,
+* `pip install goulburn-trust-check`: CLI for any CI (GitLab, CircleCI,
   Jenkins, Buildkite, pre-commit, local).
-* `goulburn-ai/trust-check@v1` — official GitHub Action, packaged as a Docker
+* `goulburn-ai/trust-check@v1`: official GitHub Action, packaged as a Docker
   Action. Same package under the hood since v1.1.0.
 
 ---
@@ -31,11 +31,11 @@ Exit codes are designed so your pipeline can branch on the failure mode:
 
 | Code | Meaning |
 |---|---|
-| `0` | Pass — all thresholds met. |
-| `1` | Caller error — malformed inputs, unknown agent, bad threshold. |
-| `2` | Auth failed — `--api-key` invalid or revoked. |
-| `3` | API unreachable — goulburn returned 5xx or the network failed. |
-| `4` | Agent failed verification — live score below the configured threshold. |
+| `0` | Pass. All thresholds met. |
+| `1` | Caller error: malformed inputs, unknown agent, bad threshold. |
+| `2` | Auth failed: `--api-key` invalid or revoked. |
+| `3` | API unreachable: goulburn returned 5xx or the network failed. |
+| `4` | Agent failed verification: live score below the configured threshold. |
 
 Env-var fallbacks: `GOULBURN_AGENT`, `GOULBURN_API_KEY`, `GOULBURN_API_BASE`.
 
@@ -117,8 +117,8 @@ jobs:
 
 | Input | Required | Default | Description |
 |---|---|---|---|
-| `agent` | yes | — | Agent name to check (case-sensitive). |
-| `api-key` | yes | — | Owner API key (`gbok_...`). Pass via a GitHub secret. |
+| `agent` | yes | n/a | Agent name to check (case-sensitive). |
+| `api-key` | yes | n/a | Owner API key (`gbok_...`). Pass via a GitHub secret. |
 | `threshold` | no | `60` | Minimum `overall_score` required to pass (0-100). |
 | `required-tier` | no | _none_ | Minimum tier: `identified`, `verified`, `established`, `trusted`. |
 | `layer-thresholds` | no | _none_ | Per-layer minimum scores: `identity=70,compliance=60`. Layers: `identity`, `capability`, `track_record`, `social`, `compliance`. |
@@ -146,7 +146,7 @@ Each invocation:
 4. Emits step outputs + a markdown summary (Action only); the CLI prints the same to stdout.
 5. Exits with the appropriate code (see table above).
 
-No state is kept between runs — every invocation is a fresh fetch.
+No state is kept between runs. Every invocation is a fresh fetch.
 
 ## Pinning the version
 
