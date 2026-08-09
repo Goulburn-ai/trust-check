@@ -17,6 +17,10 @@ jobs:
       - name: no personal identifiers in tracked files
         run: |
           # A regex owns these better than gitleaks does.
-          if git grep -nIiE '(dt9306|tragai|@student\.scu\.edu\.au)' -- . ; then
+          # Exclude this file, or the pattern matches its own definition and
+          # every repo goes red on arrival - which is how a CI check gets
+          # switched off and stops protecting anything.
+          if git grep -nIiE '(dt9306|tragai|@student\.scu\.edu\.au)' \
+               -- . ':!.github/workflows/gitleaks.yml' ; then
             echo "::error::personal identifier in a tracked file"; exit 1
           fi
