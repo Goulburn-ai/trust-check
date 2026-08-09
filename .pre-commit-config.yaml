@@ -1,0 +1,9 @@
+# The hook is the control that actually works. CI catches a secret after it is
+# already permanent in history; this catches it before the commit exists.
+#   pip install pre-commit && pre-commit install     (per clone, per machine)
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.28.0
+    hooks:
+      - id: gitleaks
+        name: gitleaks (block committed secrets)

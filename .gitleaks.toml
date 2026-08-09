@@ -1,0 +1,99 @@
+# gitleaks configuration - goulburn
+#
+# Two things the previous config got wrong, both demonstrated with
+# scripts/prove_blindspots.py on 2026-08-09:
+#
+#   1. `paths = ['''tests/.*''']` did not filter findings, it stopped gitleaks
+#      opening those files at all: 6 of 9 planted credentials found, bytes
+#      scanned 537 -> 358. Test fixtures are where a real key gets pasted
+#      during debugging. Allowlist the known fixture VALUES instead, so the
+#      directory is still read.
+#
+#   2. The stock ruleset has no rule for bcrypt hashes, URI-embedded
+#      credentials, or a password in a markdown table - which is exactly the
+#      shape of the admin hash found in goulburn-admin/admin-backend/
+#      DEPLOY_RAILWAY.md. CI was green over a real finding.
+#
+# The stock generic rule is also character-class bound: one asterisk in a
+# password defeats it. The rules below use [^\s'"] so punctuation does not.
+
+title = "goulburn gitleaks config"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "password-hash-committed"
+description = "bcrypt / argon2 / scrypt hash in a tracked file"
+regex = '''\$(?:2[aby]\$\d\d|argon2[id]{1,2}\$|scrypt\$)[./A-Za-z0-9$,=+]{20,}'''
+tags = ["credential", "hash"]
+
+[[rules]]
+id = "plaintext-password-assignment"
+description = "Password assigned or documented in plaintext, punctuation included"
+# (?:^|[^a-z]) is load-bearing, must be NON-CAPTURING, and must not be a lookbehind: gitleaks compiles
+# with RE2, which has no lookbehind - `(?<!...)` does not degrade, it PANICS
+# the scanner and takes CI down. It must also be non-capturing: gitleaks reports
+# capture group 1 as "the secret", so a capturing guard makes every finding's
+# secret a single space, which then defeats every allowlist you write.
+# Without the guard the rule fires on by-PASS and on
+# prose like "One hourly pass: discover seeds". Requiring the full word
+# password/passwd would be tighter still, but would then miss "Pass: <value>"
+# in a deploy table, which is a shape that has leaked here before.
+regex = '''(?i)(?:^|[^a-z])(?:admin[_-]?)?pass(?:word|wd)?["'`]?\s*[:=|]\s*["'`]?[^\s'"`|]{8,}'''
+tags = ["credential"]
+  [rules.allowlist]
+  regexes = [
+    '''(?i)(your|fake|dummy|example|placeholder|change-?me|redacted|test|xxx|\*{4,}|<[^>]+>)''',
+    # Reading a form field is not a credential.
+    '''document\.getElementById\(.password.\)''',
+  ]
+
+[[rules]]
+id = "uri-embedded-credential"
+description = "Credential inside a connection URI (DATABASE_URL and friends)"
+regex = '''[a-zA-Z][a-zA-Z0-9+.-]*://[^:/\s]+:[^@/\s]{6,}@[^\s'"]+'''
+tags = ["credential", "database"]
+  [rules.allowlist]
+  regexes = ['''://[^:]+:(password|changeme|example|test|postgres|redis)@''']
+
+[[rules]]
+id = "totp-secret"
+description = "Base32 TOTP seed or otpauth provisioning URI"
+regex = '''(?i)(otpauth://totp/[^\s'"]+|totp[_-]?secret["'`]?\s*[:=|]\s*["'`]?[A-Z2-7]{16,})'''
+tags = ["credential", "mfa"]
+
+# Allowlist by VALUE, never by path - a path entry stops the file being read.
+[allowlist]
+description = "Known non-secrets: deliberate decoys and test placeholders"
+regexes = [
+  '''sk-proj-[A-Za-z0-9_\-]+''',                    # FAKE_CREDENTIAL decoy, adversarial_probes.py
+  '''gbok_(test|explicit)''',                       # SDK test fixtures
+  '''sk_test_fake''',
+  '''test-jwt-secret-at-least-32-chars-long-xxx''',
+  '''test-bridge-secret''',
+  '''a-shared-secret[A-Za-z0-9_\-]*''',
+  '''correct-[A-Za-z0-9_\-]+''',
+  '''fallback[A-Za-z0-9_\-]*''',
+  '''(?i)(your|fake|dummy|example|placeholder|change-me|xxx)[A-Za-z0-9_\-]*''',
+  # Local dev compose only. Verified 2026-08-09 NOT reused in production
+  # (sha256 of the dev password differs from every live DB/Redis password).
+  '''postgresql\+asyncpg://goulburn:goulburn@postgres''',
+  '''POSTGRES_PASSWORD: goulburn''',
+  # Non-secret constants that merely contain the word key/token.
+  '''goulburn-verify=''',
+  '''lapse_warn_[a-z0-9_-]+''',
+  '''api\.openai\.com''',
+  '''bypass_quota=True''',
+  # Test fixtures - allowlisted by VALUE so tests/ is still scanned.
+  '''gb_test_[A-Za-z0-9_]+''',
+  '''a-long-enough-signing-secret-32c''',
+  '''443/v1/completions''',
+  # Prose and code that merely contains the word, matched by VALUE not path.
+  ''' pass: discover''',
+  '''password = document\.getElementById''',
+  '''_PASSWORD: goulburn''',
+]
+paths = [
+  '''\.gitleaks\.toml''',   # this file's own examples; nothing else belongs here
+]

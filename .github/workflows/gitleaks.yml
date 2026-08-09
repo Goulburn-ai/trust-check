@@ -1,0 +1,22 @@
+name: gitleaks
+on: [push, pull_request]
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Load-bearing. The default shallow checkout scans one commit, so a
+          # credential added two pushes ago would never be seen.
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: .gitleaks.toml
+      - name: no personal identifiers in tracked files
+        run: |
+          # A regex owns these better than gitleaks does.
+          if git grep -nIiE '(dt9306|tragai|@student\.scu\.edu\.au)' -- . ; then
+            echo "::error::personal identifier in a tracked file"; exit 1
+          fi
