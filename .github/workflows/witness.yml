@@ -1,0 +1,48 @@
+name: witness
+
+# External witness for the goulburn.ai attestation ledger.
+#
+# Every day this workflow fetches the fleet Merkle root from the public
+# verify API and commits it to this repository. The commit history is the
+# witness: goulburn cannot rewrite its attestation chains without the
+# recomputed root diverging from what is recorded here, on infrastructure
+# outside its database. Anyone can replay the check:
+#
+#   1. GET https://api.goulburn.ai/api/v1/verify/roots?date=YYYY-MM-DD
+#   2. Compare "root" with witness/roots/YYYY-MM-DD.json in this repo
+#   3. GET /verify/agents/{name} for an inclusion proof of any agent
+#   4. Fold the leaf up audit_path (sha256 over hex concatenation,
+#      duplicate-last on odd levels) and compare with the root
+#
+# Scheme: sha256-hexcat-dup-last-v1, leaves ordered by agent_id text asc.
+# Signing key recipe: GET /verify/key.
+
+on:
+  schedule:
+    - cron: "30 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  witness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: fetch and record the day's root
+        run: |
+          set -euo pipefail
+          BODY=$(curl -sf --max-time 30 "https://api.goulburn.ai/api/v1/verify/roots")
+          DAY=$(echo "$BODY" | python3 -c "import sys,json;print(json.load(sys.stdin)['day'])")
+          mkdir -p witness/roots
+          FILE="witness/roots/${DAY}.json"
+          if [ -f "$FILE" ]; then
+            echo "root for ${DAY} already witnessed"; exit 0
+          fi
+          echo "$BODY" | python3 -m json.tool > "$FILE"
+          git config user.name "goulburn-witness"
+          git config user.email "actions@users.noreply.github.com"
+          git add "$FILE"
+          git commit -m "witness: fleet merkle root for ${DAY}"
+          git push
