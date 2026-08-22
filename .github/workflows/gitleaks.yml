@@ -15,12 +15,16 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_CONFIG: .gitleaks.toml
       - name: no personal identifiers in tracked files
+        env:
+          PII_DENYLIST: ${{ vars.PII_DENYLIST }}
         run: |
-          # A regex owns these better than gitleaks does.
-          # Exclude this file, or the pattern matches its own definition and
-          # every repo goes red on arrival - which is how a CI check gets
-          # switched off and stops protecting anything.
-          if git grep -nIiE '(dt9306|tragai|@student\.scu\.edu\.au)' \
-               -- . ':!.github/workflows/gitleaks.yml' ; then
+          # The denylist lives in the repo Actions variable PII_DENYLIST, not in
+          # this file, so the owner's identifiers are never committed in plaintext.
+          # If it is unset, skip rather than grep an empty pattern (which would
+          # match every line and fail every run).
+          if [ -z "$PII_DENYLIST" ]; then
+            echo "PII_DENYLIST not set; skipping identifier check"; exit 0
+          fi
+          if git grep -nIiE "$PII_DENYLIST" -- . ; then
             echo "::error::personal identifier in a tracked file"; exit 1
           fi
