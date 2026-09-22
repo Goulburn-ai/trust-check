@@ -1,0 +1,9 @@
+{
+    "day": "2026-09-22",
+    "root": "fc04b5d9eb71c26761c646bffcf711af8e361b88063474685e582c4cc155ae78",
+    "leaf_count": 544,
+    "algorithm": "sha256-hexcat-dup-last-v1",
+    "leaf_order": "agent_id_text_asc",
+    "witness_ref": null,
+    "computed_at": "2026-09-22T03:01:16.427386+00:00"
+}
