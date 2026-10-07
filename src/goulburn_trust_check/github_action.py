@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import secrets
 import sys
 from typing import Any
 
@@ -50,8 +51,14 @@ def _set_output(name: str, value: Any) -> None:
         # Fallback for local runs — print to stdout in the legacy ::set-output format.
         print(f"::set-output name={name}::{value}")
         return
+    # Multiline-safe form. A plain name=value line lets a newline inside the
+    # value (agent name, API error text) forge extra outputs for later steps.
+    text = str(value)
+    delim = f"ghadelim_{secrets.token_hex(16)}"
+    while delim in text:
+        delim = f"ghadelim_{secrets.token_hex(16)}"
     with open(path, "a", encoding="utf-8") as f:
-        f.write(f"{name}={value}\n")
+        f.write(f"{name}<<{delim}\n{text}\n{delim}\n")
 
 
 def _set_step_summary(text: str) -> None:

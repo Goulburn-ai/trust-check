@@ -47,7 +47,7 @@ Output formats: `--format text` (default), `--format json`, `--format markdown`.
 trust-gate:
   image: python:3.11-slim
   stage: test
-  before_script: [pip install goulburn-trust-check==1.1.0]
+  before_script: [pip install goulburn-trust-check==1.1.1]
   script:
     - goulburn-trust-check
         --agent my_agent
@@ -65,7 +65,7 @@ jobs:
   trust-gate:
     docker: [{image: cimg/python:3.11}]
     steps:
-      - run: pip install goulburn-trust-check==1.1.0
+      - run: pip install goulburn-trust-check==1.1.1
       - run: goulburn-trust-check --agent my_agent --api-key "$GOULBURN_API_KEY" --threshold 70
 ```
 
@@ -154,12 +154,12 @@ For production pipelines, pin a specific tag:
 
 ```yaml
 # GitHub Action
-- uses: goulburn-ai/trust-check@v1.1.0
+- uses: goulburn-ai/trust-check@v1.1.1
 ```
 
 ```bash
 # CLI
-pip install "goulburn-trust-check==1.1.0"
+pip install "goulburn-trust-check==1.1.1"
 ```
 
 The major-version tag (`v1`) tracks the latest non-breaking release of the

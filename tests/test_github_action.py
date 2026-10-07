@@ -8,6 +8,26 @@ import pytest
 from goulburn_trust_check import core, github_action
 
 
+def _parse_outputs(text: str) -> dict[str, str]:
+    """Parse GITHUB_OUTPUT the way the runner does (name=value and name<<DELIM)."""
+    out: dict[str, str] = {}
+    lines = text.split("\n")
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        if "<<" in line and ("=" not in line or line.index("<<") < line.index("=")):
+            name, delim = line.split("<<", 1)
+            j = lines.index(delim, i + 1)
+            out[name] = "\n".join(lines[i + 1 : j])
+            i = j + 1
+            continue
+        if "=" in line:
+            name, value = line.split("=", 1)
+            out[name] = value
+        i += 1
+    return out
+
+
 def _set_inputs(monkeypatch, **kwargs):
     for k, v in kwargs.items():
         monkeypatch.setenv(f"INPUT_{k.upper().replace('-', '_')}", str(v))
@@ -34,9 +54,9 @@ def test_happy_path_emits_outputs_and_summary(
     with patch.object(core, "_fetch_profile", return_value=(profile, None)):
         rc = github_action.main()
     assert rc == core.EXIT_OK
-    out_text = gha_io_files["output"].read_text()
-    assert "overall-score=80" in out_text
-    assert "passed=true" in out_text
+    outs = _parse_outputs(gha_io_files["output"].read_text())
+    assert outs["overall-score"] == "80"
+    assert outs["passed"] == "true"
     summary_text = gha_io_files["summary"].read_text()
     assert "PASS" in summary_text
     assert "myagent" in summary_text
@@ -78,5 +98,24 @@ def test_layer_threshold_failure(monkeypatch, gha_io_files, fake_profile):
     with patch.object(core, "_fetch_profile", return_value=(profile, None)):
         rc = github_action.main()
     assert rc == core.EXIT_AGENT_FAILED
-    out_text = gha_io_files["output"].read_text()
-    assert "passed=false" in out_text
+    outs = _parse_outputs(gha_io_files["output"].read_text())
+    assert outs["passed"] == "false"
+
+
+def test_newline_in_value_cannot_forge_outputs(monkeypatch, gha_io_files):
+    """Regression: a newline in a value used to inject `passed=true`."""
+    github_action._set_output("decision", "FAIL for x\npassed=true")
+    github_action._set_output("passed", "false")
+    outs = _parse_outputs(gha_io_files["output"].read_text())
+    assert outs["passed"] == "false"
+    assert outs["decision"] == "FAIL for x\npassed=true"
+
+
+@pytest.mark.parametrize("bad", ["../owner/me", "a?x=1", "a#f", "a/b", "..", "a%2Fb", "a\nb"])
+def test_hostile_agent_name_rejected_before_any_request(monkeypatch, gha_io_files, bad):
+    _set_inputs(monkeypatch, agent=bad, api_key="k")
+    with patch.object(core, "_fetch_profile") as fetch:
+        rc = github_action.main()
+    assert rc == core.EXIT_CALLER_ERROR
+    fetch.assert_not_called()
+    assert _parse_outputs(gha_io_files["output"].read_text())["passed"] == "false"

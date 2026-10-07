@@ -5,12 +5,15 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   unit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.11"
       - name: Install package (with dev extras)
@@ -24,8 +27,15 @@ jobs:
   action-build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Build the Action's Docker image
-        # Docker build pip-installs goulburn-trust-check==1.1.0 from PyPI;
-        # this also serves as an end-to-end install smoke test.
+        # The image installs only from requirements.lock (--require-hashes),
+        # so a lock that drifts from pyproject or a re-uploaded package
+        # fails here before it can reach a release tag.
         run: docker build -t goulburn-trust-check:test .
+      - name: Smoke the built image (hostile name is refused with no network call)
+        run: |
+          set +e
+          docker run --rm --network none -e INPUT_AGENT='../owner/me' -e INPUT_API_KEY=x goulburn-trust-check:test
+          rc=$?
+          test "$rc" = "1" || { echo "::error::expected exit 1, got $rc"; exit 1; }
