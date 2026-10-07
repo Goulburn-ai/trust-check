@@ -23,26 +23,63 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: write   # commit the day's root
+  issues: write     # open an alert issue when a run fails
+
+concurrency:
+  group: witness
+  cancel-in-progress: false
 
 jobs:
   witness:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: fetch and record the day's root
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: fetch, validate and record the day's root
         run: |
           set -euo pipefail
-          BODY=$(curl -sf --max-time 30 "https://api.goulburn.ai/api/v1/verify/roots")
-          DAY=$(echo "$BODY" | python3 -c "import sys,json;print(json.load(sys.stdin)['day'])")
-          mkdir -p witness/roots
+          BODY=$(curl -sSf --retry 3 --retry-delay 20 --max-time 30 \
+            -A "goulburn-witness (+https://github.com/Goulburn-ai/trust-check)" \
+            "https://api.goulburn.ai/api/v1/verify/roots")
+          # Validate every field before any of it touches a path or a commit.
+          # DAY becomes a file name; an unvalidated value such as "../x" would
+          # write outside witness/roots with push rights.
+          DAY=$(printf '%s' "$BODY" | python3 -c '
+          import json, re, sys
+          d = json.load(sys.stdin)
+          day, root = d.get("day", ""), d.get("root", "")
+          if not re.fullmatch(r"20[0-9]{2}-[01][0-9]-[0-3][0-9]", day):
+              sys.exit(f"bad day: {day!r}")
+          if not re.fullmatch(r"[0-9a-f]{64}", root):
+              sys.exit(f"bad root: {root!r}")
+          if not isinstance(d.get("leaf_count"), int) or d["leaf_count"] < 0:
+              sys.exit("bad leaf_count")
+          print(day)
+          ')
           FILE="witness/roots/${DAY}.json"
+          mkdir -p witness/roots
           if [ -f "$FILE" ]; then
-            echo "root for ${DAY} already witnessed"; exit 0
+            # Same day already witnessed: the root must not have changed.
+            if ! printf '%s' "$BODY" | python3 -c '
+          import json, sys
+          new = json.load(sys.stdin); old = json.load(open(sys.argv[1]))
+          sys.exit(0 if new["root"] == old["root"] else 1)' "$FILE"; then
+              echo "::error::root for ${DAY} differs from the witnessed copy"; exit 1
+            fi
+            echo "root for ${DAY} already witnessed and unchanged"; exit 0
           fi
-          echo "$BODY" | python3 -m json.tool > "$FILE"
+          printf '%s' "$BODY" | python3 -m json.tool > "$FILE"
           git config user.name "goulburn-witness"
           git config user.email "actions@users.noreply.github.com"
           git add "$FILE"
           git commit -m "witness: fleet merkle root for ${DAY}"
           git push
+
+      - name: alert on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create --repo "$GITHUB_REPOSITORY" \
+            --title "witness run failed $(date -u +%F)" \
+            --body "Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID. A missing day is a gap in the external record; re-run once the API is healthy."

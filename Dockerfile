@@ -1,17 +1,24 @@
 # syntax=docker/dockerfile:1
-FROM python:3.11-slim
+# Base image pinned by digest (python:3.11-slim, resolved 2026-10-07).
+# Dependabot (docker ecosystem) proposes digest bumps.
+FROM python:3.11-slim@sha256:0dd364ba7e10242f07755449e3a3d0e35f9efd987952737b90def6709ab0c5ce
 
-# Install the goulburn-trust-check package from PyPI (it pulls in the
-# goulburn SDK as a transitive dep). No more git+ install — drops the
-# apt-install of git that was needed by v1.0.x.
-ENV PIP_NO_CACHE_DIR=1
-RUN pip install --upgrade pip \
- && pip install "goulburn-trust-check==1.1.0"
+ENV PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# entrypoint.py is a thin shim that calls into the package; we ship it
-# in the image so legacy invokers that exec /entrypoint.py still work.
+# Install from the checked-out source at the ref the caller pinned, not from
+# PyPI at run time. Every dependency, transitive included, is hash-locked, so
+# a compromised or re-uploaded package fails the build instead of running.
+WORKDIR /opt/trust-check
+COPY requirements.lock ./
+COPY src ./src
+RUN pip install --require-hashes --no-deps -r requirements.lock
+# The package itself runs from source on PYTHONPATH: no build step, so no
+# unhashed build backend (hatchling) is fetched at image build time.
+ENV PYTHONPATH=/opt/trust-check/src
+
+# entrypoint.py is a thin shim that calls into the package; shipped so
+# legacy invokers that exec /entrypoint.py still work.
 COPY entrypoint.py /entrypoint.py
 
-# GitHub Actions runs entrypoints with the inputs as env vars
-# (INPUT_AGENT, INPUT_API_KEY, ...). The shim reads them.
+# GitHub Actions passes inputs as env vars (INPUT_AGENT, INPUT_API_KEY, ...).
 ENTRYPOINT ["python", "/entrypoint.py"]

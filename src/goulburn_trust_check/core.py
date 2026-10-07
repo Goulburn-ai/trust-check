@@ -115,6 +115,20 @@ def parse_layer_thresholds(raw: str | None) -> dict[str, int]:
 
 # ── Core: fetch + check ────────────────────────────────────────────────
 
+def validate_agent_name(name: str) -> str | None:
+    """Return an error message if ``name`` cannot be a single URL path segment.
+
+    The SDK percent-encodes names from goulburn 0.2.2, but this package must
+    not rely on the installed SDK version: on 0.2.1 a name like
+    ``../owner/me`` was resolved to GET /api/v1/owner/me with the caller's key.
+    """
+    if not name or name in (".", ".."):
+        return f"invalid agent name {name!r}"
+    if any(ch in name for ch in "/?#%\\") or any(ord(ch) < 0x20 or ord(ch) == 0x7F for ch in name):
+        return f"invalid agent name {name!r}: must not contain / ? # % \\ or control characters"
+    return None
+
+
 def _fetch_profile(req: CheckRequest):
     """Fetch the live trust profile or raise a CheckResult-shaped exception.
 
@@ -177,6 +191,15 @@ def run(req: CheckRequest) -> CheckResult:
 
     Never raises — always returns a CheckResult with a well-defined exit_code.
     """
+    bad = validate_agent_name(req.agent)
+    if bad is not None:
+        return CheckResult(
+            passed=False,
+            exit_code=EXIT_CALLER_ERROR,
+            error=bad,
+            decision=f"trust-check: ERROR, {bad}",
+        )
+
     profile, err = _fetch_profile(req)
     if err is not None:
         # Network/auth/SDK-level errors short-circuit before any check runs.
