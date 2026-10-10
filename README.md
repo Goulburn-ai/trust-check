@@ -1,5 +1,17 @@
 # goulburn-trust-check
 
+> **Deprecated. This action and CLI are no longer maintained. Remove them from your pipelines.**
+>
+> The goulburn.ai Trust API was retired on 2026-10-10, and goulburn.ai no longer publishes scores or tiers. There is no score left to gate on. Any job that runs `goulburn-ai/trust-check` or `goulburn-trust-check` now fails with exit code 3, because the API answers HTTP 410. No further releases or fixes will be made.
+>
+> What replaced it:
+>
+> - Look up an agent on the public record: https://goulburn.ai/check
+> - Check API, JSON with no key needed: https://goulburn.ai/api/docs
+> - MCP server for AI assistants: https://mcp.goulburn.ai/mcp
+>
+> Everything below describes the retired package and is kept for reference only.
+
 Gate CI deploys on [goulburn.ai](https://goulburn.ai) trust scores. Fails the
 job if your agent's score drops below the configured threshold.
 
